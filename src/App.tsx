@@ -6,6 +6,7 @@ import { InputPanel } from "./components/InputPanel";
 import { RiskGauge } from "./components/RiskGauge";
 import { defaultCase, demoCases } from "./data/cases";
 import { analyzeRisk } from "./lib/analyzer";
+import { analyzeWithBackend } from "./lib/api";
 import type { DemoCase, FeatureMap } from "./lib/types";
 
 function amountFromText(text: string) {
@@ -79,8 +80,8 @@ export default function App() {
     selectCase(defaultCase);
   }
 
-  function analyzeCurrentInput() {
-    const nextResult = analyzeRisk({
+  async function analyzeCurrentInput() {
+    const payload = {
       inputText,
       amount,
       receiver,
@@ -90,7 +91,7 @@ export default function App() {
       isStudent,
       firstTimeTrade,
       features: caseFeatures
-    });
+    };
 
     setAnalyzing(true);
     setActiveStep(0);
@@ -100,11 +101,23 @@ export default function App() {
       window.setTimeout(() => setActiveStep(step), 280 * (index + 1));
     });
 
-    window.setTimeout(() => {
-      setResult(nextResult);
+    try {
+      const remoteResult = await analyzeWithBackend(payload);
+      setResult(remoteResult);
+    } catch {
+      const fallbackResult = analyzeRisk(payload);
+      setResult({
+        ...fallbackResult,
+        backendStatus: "fallback",
+        redTeamNotes: [
+          "后端 Agent 服务暂不可用，已自动回退到浏览器本地规则分析。",
+          ...fallbackResult.redTeamNotes
+        ]
+      });
+    } finally {
       setAnalyzing(false);
       setActiveStep(3);
-    }, 980);
+    }
   }
 
   return (

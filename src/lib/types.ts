@@ -30,6 +30,7 @@ export interface AnalyzePayload {
   isStudent?: boolean;
   firstTimeTrade?: boolean;
   features?: FeatureMap;
+  conversationId?: string;
 }
 
 export interface MatchedRule {
@@ -55,4 +56,11 @@ export interface AnalysisResult {
   nextActions: string[];
   replyTemplate: string;
   redTeamNotes: string[];
+  agentTrace?: Array<{
+    agent: string;
+    action: string;
+    summary: string;
+    toolCalls?: string[];
+  }>;
+  backendStatus?: "remote" | "fallback";
 }
