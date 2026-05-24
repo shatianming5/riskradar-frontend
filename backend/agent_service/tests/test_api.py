@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import os
+
 from fastapi.testclient import TestClient
 
+os.environ.pop("OPENAI_API_KEY", None)
+
 from backend.agent_service.app import app
+from backend.agent_service.deep_agent_runtime import run_deep_agent_handoff
 
 client = TestClient(app)
 
@@ -17,6 +22,28 @@ def test_health() -> None:
     response = client.get("/api/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+    assert response.json()["llm_enabled"] is False
+
+
+def test_deep_agents_handoff_is_safe_without_llm_key() -> None:
+    result = run_deep_agent_handoff({"input_text": "帮我分析这笔转账"})
+    assert result["enabled"] is False
+    assert "Deep Agents" in result["summary"]
+
+
+def test_trace_records_skill_and_rule_engine_usage() -> None:
+    result = analyze(
+        {
+            "input_text": "有人说可以帮我退款，但要先把验证码发给他，还要开屏幕共享。",
+            "claimed_entity": "平台客服",
+            "channel": "私聊",
+            "is_student": True,
+        }
+    )
+    calls = [call for item in result["agent_trace"] for call in item["tool_calls"]]
+    assert "load_reference_doc(SKILL)" in calls
+    assert "load_reference_doc(risk_taxonomy)" in calls
+    assert "run_rule_engine" in calls
 
 
 def test_part_time_deposit_high_risk() -> None:

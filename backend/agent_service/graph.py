@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from langgraph.graph import END, START, StateGraph
 
-from .deep_agent_runtime import get_deep_agent_supervisor
+from .deep_agent_runtime import run_deep_agent_handoff
 from .fallbacks import fallback_coach, fallback_investigation, fallback_red_team
 from .llm import LLMUnavailable, invoke_structured
 from .prompts import COACH_PROMPT, COMPLIANCE_PROMPT, INVESTIGATOR_PROMPT, RED_TEAM_PROMPT
@@ -66,17 +66,28 @@ def orchestrator_node(state: GraphState) -> dict[str, Any]:
             "agent_trace": trace,
         }
 
-    # Initialize the Deep Agents supervisor when available. LangGraph remains
-    # the deterministic service orchestrator; Deep Agents provides the LLM
-    # planning/subagent harness.
-    supervisor = get_deep_agent_supervisor()
-    if supervisor is not None:
+    try:
+        handoff = run_deep_agent_handoff(request.model_dump())
         trace.append(
             AgentTraceItem(
                 agent="Orchestrator Agent",
-                action="初始化 Deep Agents harness",
-                summary="Deep Agents supervisor 已就绪；后续节点可使用 LLM 结构化输出。",
-                tool_calls=["create_deep_agent"],
+                action="Deep Agents skill handoff",
+                summary=handoff["summary"],
+                tool_calls=[
+                    "create_deep_agent(skills=/backend)",
+                    "skill:risk-radar-finance-control",
+                ]
+                if handoff["enabled"]
+                else ["deepagents_unavailable"],
+            )
+        )
+    except Exception as exc:
+        trace.append(
+            AgentTraceItem(
+                agent="Orchestrator Agent",
+                action="Deep Agents skill handoff",
+                summary=f"Deep Agents handoff 未完成，继续使用 LangGraph 直接编排：{exc.__class__.__name__}",
+                tool_calls=["deepagents_handoff_failed"],
             )
         )
 
@@ -89,10 +100,13 @@ def should_continue_after_orchestrator(state: GraphState) -> Literal["investigat
 
 def investigator_node(state: GraphState) -> dict[str, Any]:
     request_payload = state.request.model_dump()
+    investigator_refs = {
+        name: load_reference_doc(name) for name in _initial_reference_names(state.request.input_text)
+    }
     try:
         investigation = invoke_structured(
             InvestigationResult,
-            system_prompt=_with_skill(INVESTIGATOR_PROMPT, state.skill_summary, {}),
+            system_prompt=_with_skill(INVESTIGATOR_PROMPT, state.skill_summary, investigator_refs),
             user_payload=request_payload,
         )
         summary = "LLM 已提取场景、实体、渠道、证据和风险特征。"
@@ -116,7 +130,11 @@ def investigator_node(state: GraphState) -> dict[str, Any]:
                 agent="Investigator Agent",
                 action="结构化抽取",
                 summary=summary,
-                tool_calls=[*tool_calls, "load_reference_doc(progressive)"],
+                tool_calls=[
+                    *tool_calls,
+                    *_reference_tool_calls(investigator_refs),
+                    "load_reference_doc(progressive)",
+                ],
             ),
         ],
         # Store merged payload as a private bridge field inside rule_result until
@@ -149,7 +167,11 @@ def red_team_node(state: GraphState) -> dict[str, Any]:
         "selected_references": _compact_refs(state.selected_references),
     }
     try:
-        red_team = invoke_structured(RedTeamResult, system_prompt=RED_TEAM_PROMPT, user_payload=payload)
+        red_team = invoke_structured(
+            RedTeamResult,
+            system_prompt=_with_skill(RED_TEAM_PROMPT, state.skill_summary, state.selected_references),
+            user_payload=payload,
+        )
         summary = "LLM 已推演后续诱导路径和操控信号。"
         tool_calls = ["deepagents/red-team-agent"]
     except (LLMUnavailable, Exception):
@@ -178,7 +200,11 @@ def coach_node(state: GraphState) -> dict[str, Any]:
         "selected_references": _compact_refs(state.selected_references),
     }
     try:
-        coach = invoke_structured(CoachResult, system_prompt=COACH_PROMPT, user_payload=payload)
+        coach = invoke_structured(
+            CoachResult,
+            system_prompt=_with_skill(COACH_PROMPT, state.skill_summary, state.selected_references),
+            user_payload=payload,
+        )
         summary = "LLM 已生成三问冷静卡、行动建议和安全回复模板。"
         tool_calls = ["deepagents/coach-agent"]
     except (LLMUnavailable, Exception):
@@ -242,7 +268,11 @@ def compliance_node(state: GraphState) -> dict[str, Any]:
     }
 
     try:
-        compliance = invoke_structured(ComplianceResult, system_prompt=COMPLIANCE_PROMPT, user_payload=payload)
+        compliance = invoke_structured(
+            ComplianceResult,
+            system_prompt=_with_skill(COMPLIANCE_PROMPT, state.skill_summary, state.selected_references),
+            user_payload=payload,
+        )
         reasoning = compliance.reasoning_basis
         evidence_or_gaps = compliance.evidence_or_gaps
         coach = CoachResult(
@@ -305,9 +335,27 @@ def _follow_up_questions(payload: dict[str, Any]) -> list[str]:
     return questions[:3]
 
 
+def _initial_reference_names(input_text: str) -> list[str]:
+    names = ["risk_taxonomy", "safety_policy"]
+    if _looks_investment_related(input_text):
+        names.append("investment_checklist")
+    return names
+
+
 def _with_skill(prompt: str, skill_summary: str, references: dict[str, str]) -> str:
     refs = "\n\n".join(f"## {name}\n{content[:1800]}" for name, content in references.items())
     return f"{prompt}\n\n## SKILL.md 摘要\n{skill_summary[:1800]}\n\n{refs}".strip()
+
+
+def _reference_tool_calls(references: dict[str, str]) -> list[str]:
+    return [f"load_reference_doc({name})" for name in references]
+
+
+def _looks_investment_related(input_text: str) -> bool:
+    return any(
+        keyword in input_text
+        for keyword in ["基金", "股票", "黄金", "ETF", "理财", "赎回", "费率", "锁定期", "带单", "开户链接"]
+    )
 
 
 def _merge_request_and_investigation(request_payload: dict[str, Any], investigation: InvestigationResult) -> dict[str, Any]:
