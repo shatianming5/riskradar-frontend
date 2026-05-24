@@ -1,0 +1,89 @@
+{
+  "cases": [
+    {
+      "id": "part_time_deposit",
+      "expected_level": "极高风险",
+      "min_score": 80,
+      "required_rule_keys": ["upfront_fee", "off_platform"],
+      "evidence_keywords": ["保证金", "不要走平台"]
+    },
+    {
+      "id": "second_hand_camera",
+      "expected_level": "高风险",
+      "min_score": 60,
+      "required_rule_keys": ["upfront_fee", "off_platform", "off_platform+upfront_fee"],
+      "evidence_keywords": ["加微信", "定金"]
+    },
+    {
+      "id": "official_campus_fee",
+      "expected_level": "低风险",
+      "max_score": 20,
+      "required_rule_keys": ["official_platform", "official_double_check"],
+      "evidence_keywords": ["统一支付平台", "辅导员"]
+    },
+    {
+      "id": "fake_customer_service_refund",
+      "expected_level": "极高风险",
+      "min_score": 80,
+      "required_rule_keys": ["asks_for_sensitive_credentials", "asks_for_screen_share"],
+      "evidence_keywords": ["验证码", "屏幕共享"]
+    },
+    {
+      "id": "investment_unknown_product",
+      "expected_level": "高风险",
+      "min_score": 60,
+      "required_rule_keys": ["unknown_product", "social_hype_only"],
+      "evidence_keywords": ["基金交流群", "不知道它具体投什么"]
+    },
+    {
+      "id": "borrowed_money_invest",
+      "expected_level": "高风险",
+      "min_score": 70,
+      "required_rule_keys": ["leverage_or_borrowed_money", "all_in_or_high_concentration"],
+      "evidence_keywords": ["花呗", "重仓"]
+    },
+    {
+      "id": "fake_classmate_transfer",
+      "expected_level": "高风险",
+      "min_score": 70,
+      "required_rule_keys": ["identity_impersonation", "third_party_receiver"],
+      "evidence_keywords": ["自称", "转3000给朋友"]
+    },
+    {
+      "id": "negation_platform_safe",
+      "expected_level": "低风险",
+      "max_score": 25,
+      "required_rule_keys": ["official_platform"],
+      "forbidden_rule_keys": ["off_platform"],
+      "evidence_keywords": ["平台内下单", "平台担保"]
+    },
+    {
+      "id": "low_risk_money_fund",
+      "expected_level": "低风险",
+      "max_score": 20,
+      "required_rule_keys": ["official_licensed_platform", "understands_product", "spare_money_investment"],
+      "evidence_keywords": ["银行官方App", "剩余生活费"]
+    },
+    {
+      "id": "teacher_stock_link",
+      "expected_level": "高风险",
+      "min_score": 70,
+      "required_rule_keys": ["social_hype_only", "off_platform", "high_return"],
+      "evidence_keywords": ["开户链接", "三天至少涨20%"]
+    },
+    {
+      "id": "rent_money_locked_wealth",
+      "expected_level": "中风险",
+      "min_score": 40,
+      "required_rule_keys": ["cashflow_mismatch", "unknown_fee_or_redemption", "cashflow_mismatch+unknown_fee_or_redemption"],
+      "evidence_keywords": ["下个月房租", "提前赎回规则"]
+    },
+    {
+      "id": "low_risk_index_dca",
+      "expected_level": "低风险",
+      "max_score": 20,
+      "required_rule_keys": ["official_licensed_platform", "understands_product", "small_position_or_diversified"],
+      "evidence_keywords": ["券商官方App", "定投宽基ETF"]
+    }
+  ]
+}

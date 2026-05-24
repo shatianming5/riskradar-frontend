@@ -1,0 +1,7 @@
+interface:
+  display_name: "RiskRadar 大学生个人金融风控助手"
+  short_description: "大学生个人金融风控、理财决策提醒与安全行动建议"
+  default_prompt: "请使用 $risk-radar-finance-control 按固定输出契约评估这笔付款、借贷、理财或账户安全相关请求的风险，给出风险等级、分数、证据、三问冷静卡和安全回复。"
+
+policy:
+  allow_implicit_invocation: true
